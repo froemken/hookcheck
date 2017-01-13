@@ -162,28 +162,30 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
             't3lib/class.t3lib_userauthgroup.php',
         ];
         foreach ($allowedCoreHooks as $allowedCoreHook) {
-            foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][$allowedCoreHook] as $hookName => $hooks) {
-                foreach ($hooks as $key => $classRef) {
-                    $className = $this->getClassNameFromClassRef($classRef);
-                    if (empty($className)) {
-                        continue;
-                    }
-                    $newClassName = $hookName . $key;
+            if (!empty($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][$allowedCoreHook])) {
+                foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][$allowedCoreHook] as $hookName => $hooks) {
+                    foreach ($hooks as $key => $classRef) {
+                        $className = $this->getClassNameFromClassRef($classRef);
+                        if (empty($className)) {
+                            continue;
+                        }
+                        $newClassName = $hookName . $key;
             
-                    $rows = [];
-                    $rows[] = 'namespace StefanFroemken\\Hookcheck;';
-                    $rows[] = sprintf('class %s extends \\%s', $newClassName, $className);
-                    $rows[] = '{';
-                    $rows[] = $this->buildMethods($className);
-                    $rows[] = '}';
+                        $rows = [];
+                        $rows[] = 'namespace StefanFroemken\\Hookcheck;';
+                        $rows[] = sprintf('class %s extends \\%s', $newClassName, $className);
+                        $rows[] = '{';
+                        $rows[] = $this->buildMethods($className);
+                        $rows[] = '}';
             
-                    $code = implode(LF, $rows);
+                        $code = implode(LF, $rows);
             
-                    $cacheEntryIdentifier = 'tx_hookcheck_' . strtolower(str_replace('/', '_', $this->changeClassName($newClassName)));
-                    try {
-                        $this->cacheInstance->set($cacheEntryIdentifier, $code);
-                    } catch (\Exception $e) {
-                        throw new \Exception($e->getMessage());
+                        $cacheEntryIdentifier = 'tx_hookcheck_' . strtolower(str_replace('/', '_', $this->changeClassName($newClassName)));
+                        try {
+                            $this->cacheInstance->set($cacheEntryIdentifier, $code);
+                        } catch (\Exception $e) {
+                            throw new \Exception($e->getMessage());
+                        }
                     }
                 }
             }
@@ -217,15 +219,11 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
                         $defaultValue = ' = ' . $parameter->getDefaultValue();
                     }
                 }
-                if ($parameter->isArray()) {
-                    $propertyClassName = 'array';
-                } else {
-                    $propertyClassName = $parameter->getClass() ? '\\' . $parameter->getClass()->getName() . ' ' : '';
-                }
+                $propertyClassName = $this->getPropertyClassName($parameter);
                 if ($parameter->isPassedByReference()) {
-                    $newOrigParameters[] = $propertyClassName . '&$' . $parameter->getName() . $defaultValue;
+                    $newOrigParameters[] = $propertyClassName . ' &$' . $parameter->getName() . $defaultValue;
                 } else {
-                    $newOrigParameters[] = $propertyClassName . '$' . $parameter->getName() . $defaultValue;
+                    $newOrigParameters[] = $propertyClassName . ' $' . $parameter->getName() . $defaultValue;
                 }
                 $newParameters[] = '$' . $parameter->getName() . $defaultValue;
             }
@@ -243,6 +241,33 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
             $newMethods[] = '    }';
         }
         return implode(LF, $newMethods);
+    }
+    
+    /**
+     * Get property class name
+     *
+     * @param \ReflectionParameter $parameter
+     *
+     * @return string
+     */
+    protected function getPropertyClassName(\ReflectionParameter $parameter)
+    {
+        $propertyClassName = '';
+        if ($parameter->isArray()) {
+            $propertyClassName = 'array';
+        } elseif($class = $parameter->getClass()) {
+            $propertyClassName = $class->getName();
+            if (
+                $propertyClassName === 'string' ||
+                $propertyClassName === 'int' ||
+                $propertyClassName === 'integer'
+            ) {
+                $propertyClassName = '';
+            } else {
+                $propertyClassName = '\\' . $propertyClassName;
+            }
+        }
+        return $propertyClassName;
     }
     
     /**
