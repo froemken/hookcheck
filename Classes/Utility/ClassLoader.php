@@ -252,10 +252,13 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
      */
     protected function getPropertyClassName(\ReflectionParameter $parameter)
     {
-        $propertyClassName = '';
         if ($parameter->isArray()) {
-            $propertyClassName = 'array';
-        } elseif($class = $parameter->getClass()) {
+            return 'array';
+        }
+        try {
+            if (!$class = $parameter->getClass()) {
+                return '';
+            }
             $propertyClassName = $class->getName();
             if (
                 $propertyClassName === 'string' ||
@@ -266,6 +269,9 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
             } else {
                 $propertyClassName = '\\' . $propertyClassName;
             }
+        } catch (\Exception $e) {
+            // class does not exists. \TYPO3\CMS\...\string
+            $propertyClassName = '';
         }
         return $propertyClassName;
     }
