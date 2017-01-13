@@ -166,6 +166,7 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
                 foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][$allowedCoreHook] as $hookName => $hooks) {
                     $hookName = str_replace('::', '', $hookName);
                     foreach ($hooks as $key => $classRef) {
+                        $key = str_replace('::', '', $key);
                         $className = $this->getClassNameFromClassRef($classRef);
                         if (empty($className)) {
                             continue;
