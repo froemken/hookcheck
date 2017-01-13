@@ -208,44 +208,49 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
     protected function buildMethods($className)
     {
         $newMethods = [];
-        $refClass = new \ReflectionClass($className);
-        $publicMethods = $refClass->getMethods(\ReflectionMethod::IS_PUBLIC);
-        foreach ($publicMethods as $publicMethod) {
-            $parameters = $publicMethod->getParameters();
-            $newOrigParameters = [];
-            $newParameters = [];
-            foreach ($parameters as $parameter) {
-                $defaultValue = '';
-                if ($parameter->isOptional()) {
-                    if ($parameter->getDefaultValue() === null) {
-                        $defaultValue = ' = null';
-                    } elseif($parameter->getDefaultValue() === array()) {
-                        $defaultValue = ' = array()';
-                    } else {
-                        $defaultValue = ' = ' . $parameter->getDefaultValue();
+        try {
+            $refClass = new \ReflectionClass($className);
+            $publicMethods = $refClass->getMethods(\ReflectionMethod::IS_PUBLIC);
+            foreach ($publicMethods as $publicMethod) {
+                $parameters = $publicMethod->getParameters();
+                $newOrigParameters = [];
+                $newParameters = [];
+                foreach ($parameters as $parameter) {
+                    $defaultValue = '';
+                    if ($parameter->isOptional()) {
+                        if ($parameter->getDefaultValue() === null) {
+                            $defaultValue = ' = null';
+                        } elseif($parameter->getDefaultValue() === array()) {
+                            $defaultValue = ' = array()';
+                        } else {
+                            $defaultValue = ' = ' . $parameter->getDefaultValue();
+                        }
                     }
+                    $propertyClassName = $this->getPropertyClassName($parameter);
+                    if ($parameter->isPassedByReference()) {
+                        $newOrigParameters[] = $propertyClassName . ' &$' . $parameter->getName() . $defaultValue;
+                    } else {
+                        $newOrigParameters[] = $propertyClassName . ' $' . $parameter->getName() . $defaultValue;
+                    }
+                    $newParameters[] = '$' . $parameter->getName() . $defaultValue;
                 }
-                $propertyClassName = $this->getPropertyClassName($parameter);
-                if ($parameter->isPassedByReference()) {
-                    $newOrigParameters[] = $propertyClassName . ' &$' . $parameter->getName() . $defaultValue;
-                } else {
-                    $newOrigParameters[] = $propertyClassName . ' $' . $parameter->getName() . $defaultValue;
-                }
-                $newParameters[] = '$' . $parameter->getName() . $defaultValue;
+                $newMethods[] = sprintf('    public function %s(%s)',
+                    $publicMethod->getName(),
+                    implode(', ', $newOrigParameters)
+                );
+                $newMethods[] = '    {';
+                $newMethods[] = '        $msStart = microtime(true);';
+                $newMethods[] = '        $tmp = parent::' . $publicMethod->getName() . '(' . implode(', ', $newParameters) . ');';
+                $newMethods[] = '        if ((microtime(true) - $msStart) > ' . $this->minWaitingTime . ') {';
+                $newMethods[] = '            \\TYPO3\\CMS\\Core\\Utility\\DebugUtility::debug(microtime(true) - $msStart, \'' . $className . ':' . $publicMethod->getName() . '\');';
+                $newMethods[] = '        }';
+                $newMethods[] = '        return $tmp;';
+                $newMethods[] = '    }';
             }
-            $newMethods[] = sprintf('    public function %s(%s)',
-                $publicMethod->getName(),
-                implode(', ', $newOrigParameters)
-            );
-            $newMethods[] = '    {';
-            $newMethods[] = '        $msStart = microtime(true);';
-            $newMethods[] = '        $tmp = parent::' . $publicMethod->getName() . '(' . implode(', ', $newParameters) . ');';
-            $newMethods[] = '        if ((microtime(true) - $msStart) > ' . $this->minWaitingTime . ') {';
-            $newMethods[] = '            \\TYPO3\\CMS\\Core\\Utility\\DebugUtility::debug(microtime(true) - $msStart, \'' . $className . ':' . $publicMethod->getName() . '\');';
-            $newMethods[] = '        }';
-            $newMethods[] = '        return $tmp;';
-            $newMethods[] = '    }';
+        } catch (\Exception $e) {
+            $newMethods = [];
         }
+
         return implode(LF, $newMethods);
     }
     
