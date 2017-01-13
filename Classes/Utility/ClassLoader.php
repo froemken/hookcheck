@@ -120,6 +120,10 @@ class ClassLoader implements \TYPO3\CMS\Core\SingletonInterface
             $class = '';
         }
         
+        if (StringUtility::beginsWith($class, '&')) {
+            $class = str_replace('&', '', $class);
+        }
+        
         return $class;
     }
     
